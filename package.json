@@ -1,0 +1,24 @@
+{
+  "name": "live-poll",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "bootstrap": "lerna bootstrap",
+    "build": "lerna run build",
+    "start": "lerna run start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rudxde/SHK-page.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rudxde/SHK-page/issues"
+  },
+  "homepage": "https://github.com/rudxde/SHK-page#readme",
+  "devDependencies": {
+    "lerna": "^3.22.1"
+  }
+}

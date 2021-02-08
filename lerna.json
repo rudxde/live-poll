@@ -1,0 +1,10 @@
+{
+  "packages": [
+    "api",
+    "client",
+    "akrons/client/*",
+    "akrons/common/*",
+    "akrons/server/*"
+  ],
+  "version": "0.0.0"
+}

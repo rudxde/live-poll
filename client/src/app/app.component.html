@@ -1,0 +1,11 @@
+<div class="messages">
+  <div *ngFor="let m of messages">
+    {{m}}
+  </div>
+</div>
+<div>
+  <input type="text" [formControl]="text">
+  <button (click)="send()">send</button>
+  <button (click)="clear()">clear</button>
+</div>
+<canvas #canvas></canvas>
