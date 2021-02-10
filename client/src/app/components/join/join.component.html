@@ -1,0 +1,15 @@
+<div class="container">
+
+    <mat-card class="card">
+        <mat-form-field class="example-full-width">
+            <mat-label>Code</mat-label>
+            <input matInput [formControl]="codeControl">
+            <mat-label color="warn" *ngIf="codeControl.touched && codeControl.invalid">
+                Bitte gegen sie einen gültigen Beitrittscode ein!
+            </mat-label>
+        </mat-form-field>
+
+        <button mat-raised-button color="primary" (click)="join()">Join</button>
+    </mat-card>
+
+</div>

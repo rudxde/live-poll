@@ -1,0 +1,21 @@
+<div>
+    <mat-form-field class="example-full-width">
+        <mat-label>Message</mat-label>
+        <input matInput [formControl]="messageControl">
+        <mat-label color="warn" *ngIf="messageControl.touched && messageControl.invalid">
+            Bitte geben Sie eine Nachricht ein
+        </mat-label>
+    </mat-form-field>
+    <button mat-button color="primary" (click)="send()">send</button>
+    <button mat-button color="warn" (click)="clear()">clear</button>
+    <button mat-button color="warn" (click)="publish()">publish</button>
+    <button mat-button color="warn" (click)="leave()">leave</button>
+</div>
+
+<div class="members">
+    online: {{memberCount$ | async}}
+</div>
+
+<mat-card>
+    <canvas #canvas></canvas>
+</mat-card>

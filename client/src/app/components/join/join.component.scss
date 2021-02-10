@@ -1,0 +1,14 @@
+.container {
+    height: 100%;
+    display: grid;
+    align-items: center;
+    justify-items: center;
+    .card {
+        align-items: center;
+        height: 200px;
+        width: 300px;
+        display: grid;
+        margin: 32px;
+        grid-template-rows: 1fr auto;
+    }
+}

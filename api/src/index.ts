@@ -1,65 +1,58 @@
 import express, { Request, Response, NextFunction } from 'express';
 import expressWs from 'express-ws';
-import { loadConfig } from './configuration';
-const { app, getWss, applyTo } = expressWs(express());
-import redis from 'redis';
-import { promisify } from 'util';
+import { IServiceError } from '@akrons/service-utils';
+import { Environment } from './lib/environment';
+import { Keys } from './lib/keys';
+import { GetTokenMiddleware } from '@akrons/auth-lib';
+import cors from 'cors';
 
 async function main() {
-    const { port, hostname, redisHost } = await loadConfig();
+    await Environment.loadEnvironment();
+    await Keys.loadKeys();
+    const { app, getWss, applyTo } = expressWs(express());
 
-    const redisClient = redis.createClient({
-        host: redisHost
-    });
-    const redisSubscriberClient = redis.createClient({
-        host: redisHost
-    });
-    const redisGetAsync = promisify(redisClient.get).bind(redisClient);
-    const redisSetAsync = promisify(redisClient.set).bind(redisClient);
+    app.use(express.json({ limit: "100mb" }));
 
-    app.ws('/', function (ws, req) {
-        let alive = true;
-        sendCurrentState(alive, ws).catch(err => console.error(err));
-        redisSubscriberClient.on('message', (channel, message) => {
-            sendCurrentState(alive, ws).catch(err => console.error(err));
-        });
-        ws.send("connected");
-        ws.on('message', async (x) => {
-            if (x.toString() === 'keepalive') {
-            } else if (x.toString() === 'clear') {
-                await redisSetAsync('chart', '[]');
-                redisClient.publish('update', '');
-            } else {
-                const message = x.toString();
-                console.log('message: ' + message);
-                const chart: [string, number][] = JSON.parse((await redisGetAsync('chart')) || '[]');
-                const wordIndex = chart.findIndex(([key, value]) => key === message)
-                if (wordIndex === -1) {
-                    chart.push([message, 1]);
-                } else {
-                    chart[wordIndex][1] += 1;
-                }
-                await redisSetAsync('chart', JSON.stringify(chart));
-                redisClient.publish('update', '');
-            }
-        });
-        ws.on('close', () => {
-            alive = false;
-        });
-    });
-
-    redisSubscriberClient.subscribe('update');
-
-    app.listen(port, hostname, () =>
-        console.log(`Server listening on port ${port}!`),
-    );
-
-    async function sendCurrentState(alive: boolean, ws: import('ws')) {
-        if (alive) {
-            ws.send((await redisGetAsync('chart')) || '[]');
-            // ws.send(message);
-        }
+    if (Environment.get().corsAll) {
+        app.use(cors());
+    } else {
+        app.use(cors({
+            methods: 'GET,HEAD,OPTIONS,PUT,PATCH,POST,DELETE',
+            origin: Environment.get().corsOrigins?.map(String) || '',
+            credentials: true,
+            preflightContinue: false,
+        }));
     }
+
+    if (Environment.get().authEnabled) {
+        app.use(
+            GetTokenMiddleware(Keys.get()!.authPublicKey),
+        )
+    } else {
+        app.use((req, res, next) => {
+            req.permissions = ['live-poll.*'];
+            next();
+        });
+    }
+
+    app.use('/api', await (await import('./routes')).route());
+
+    app.use((err: IServiceError | any, req: Request, res: Response, next: NextFunction) => {
+        if (err.statusCode) {
+            const is400 = err.statusCode < 500 && err.statusCode >= 400;
+            if (!is400 || Environment.get().log400Errors === true) {
+                console.error(err);
+            }
+            return res.sendStatus(err.statusCode);
+        }
+        console.error(err);
+        res.sendStatus(500);
+        next();
+    });
+
+    app.listen(Environment.get().port, Environment.get().hostname, () =>
+        console.log(`Server listening on host [${Environment.get().hostname}] and port ${Environment.get().port}!`),
+    );
 }
 
 main().catch(err => {
