@@ -26,6 +26,10 @@ async function main() {
 
     if (Environment.get().authEnabled) {
         app.use(
+            (req, res, next) => {
+                req.permissions = ['live-poll.default'];
+                next();
+            },
             GetTokenMiddleware(Keys.get()!.authPublicKey),
         )
     } else {

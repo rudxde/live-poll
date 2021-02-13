@@ -1,6 +1,6 @@
 import { auth } from '@akrons/types';
 import { isCommand, PollSettings, PollState, PostCommand, SetConfigurationCommand, MemberCountCommand, StateCommand } from 'live-poll-shared';
-import { Poll } from './poll';
+import { Poll, PollNotInitializedError } from './poll';
 
 export class Client {
     poll: Poll | undefined;
@@ -16,7 +16,11 @@ export class Client {
     async open(): Promise<void> {
         this.send(JSON.stringify({ command: 'hi', permissions: this.permissions }));
         this.poll = await Poll.getPoll(this.pollId, this);
-        await this.setState(await this.poll.getPollState(), await this.poll.getSettings());
+        const pollSettings = await this.poll.getSettings();
+        if(!pollSettings) {
+            throw new PollNotInitializedError();
+        }
+        await this.setState(await this.poll.getPollState(), pollSettings);
     }
 
     async message(message: string): Promise<void> {
@@ -93,6 +97,9 @@ export class Client {
             throw new Error('no active poll')
         }
         const settings = await this.poll.getSettings();
+        if(!settings) {
+            throw new PollNotInitializedError();
+        }
         if (!auth.hasPermission(settings.postPermisions || 'never', this.permissions)) {
             console.debug(`missing permissions to post: ${settings.postPermisions || 'never'} has: ${this.permissions}.`);
             console.debug(`settings: ${JSON.stringify(settings, undefined, 4)}`);
@@ -113,6 +120,9 @@ export class Client {
             throw new Error('no active poll')
         }
         const settings = await this.poll.getSettings();
+        if (!settings) {
+            throw new PollNotInitializedError();
+        }
         if (!auth.hasPermission(settings.clearPermisions || 'never', this.permissions)) {
             return;
         }

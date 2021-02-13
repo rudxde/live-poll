@@ -2,6 +2,8 @@ import { RedisAsyncClient } from './redis-async-client';
 import { Client } from './client';
 import { Environment } from './environment';
 import { PollSettings, PollState } from 'live-poll-shared';
+import { auth } from '@akrons/types';
+import { NotAuthorizedError } from '@akrons/service-utils';
 
 export class Poll {
     static openPolls: Poll[] = [];
@@ -25,23 +27,37 @@ export class Poll {
 
     static async createInstance(id: string, client: Client): Promise<Poll> {
         const newPoll = new Poll(id, []);
+        const pollSettings = await newPoll.getSettings();
+        if (!pollSettings) {
+            await this.createPoll(newPoll, client);
+        }
         this.openPolls.push(newPoll);
         await Poll.redisSubscriber.subscribe(Poll.redisUpdateChannel(id));
         await newPoll.join(client);
         return newPoll;
     }
 
+    static async createPoll(localPoll: Poll, client: Client): Promise<void> {
+        if (!auth.hasPermission(Environment.get().createPollPermission, client.permissions)) {
+            throw new NotAuthorizedError();
+        }
+        await localPoll.generateDefaultSettings(client);
+    }
+
     static async getPoll(id: string, client: Client): Promise<Poll> {
-        const exists = this.openPolls.find(x => x.id === id);
-        if (exists) {
-            await exists.join(client);
-            return exists;
+        const existsLocal = this.openPolls.find(x => x.id === id);
+        if (existsLocal) {
+            await existsLocal.join(client);
+            return existsLocal;
         }
         return await Poll.createInstance(id, client);
     }
 
     private async redisMessage(message: string): Promise<void> {
         const pollSettings = await this.getSettings();
+        if (!pollSettings) {
+            return;
+        }
         const pollState = await this.getPollState();
         const pollMemberCount = await this.getMemberCount();
         switch (message as UpdateChannelMessages) {
@@ -64,8 +80,6 @@ export class Poll {
 
     async join(client: Client): Promise<void> {
         this.clients.push(client);
-        const pollSettings = await this.getSettings();
-        const pollState = await this.getPollState();
         await Poll.redisPublisher.incr(Poll.redisUpdateMemberCount(this.id));
         await Poll.redisPublisher.publish(Poll.redisUpdateChannel(this.id), UpdateChannelMessages.UPDATE_MEMBER_COUNT);
     }
@@ -76,16 +90,17 @@ export class Poll {
         await Poll.redisPublisher.publish(Poll.redisUpdateChannel(this.id), UpdateChannelMessages.UPDATE_MEMBER_COUNT);
     }
 
-    async getSettings(): Promise<Partial<PollSettings>> {
+    async getSettings(): Promise<Partial<PollSettings | undefined>> {
         const settings = await Poll.redisPublisher.get(Poll.redisPollSettings(this.id));
         if (!settings) {
-            return await this.generateDefaultSettings();
+            return undefined;
+            // return await this.generateDefaultSettings();
         }
         return JSON.parse(settings);
     }
 
-    private async generateDefaultSettings() {
-        const userPermission = this.clients[0].permissions.find(x => x.startsWith('user.'));
+    private async generateDefaultSettings(client: Client) {
+        const userPermission = client.permissions.find(x => x.startsWith('user.'));
         const authEnabled = Environment.get().authEnabled;
         const defaultPermisions = (authEnabled && userPermission) ? userPermission : 'live-poll.*';
         const defaultSettings: PollSettings = {
@@ -164,4 +179,10 @@ enum UpdateChannelMessages {
     UPDATE_MEMBER_COUNT = 'member-count',
     UPDATE_SETTINGS = 'update-settings',
     UPDATE_POLL_STATE = 'update-poll-state'
+}
+
+export class PollNotInitializedError extends Error {
+    constructor() {
+        super(`PollNotInitializedError`);
+    }
 }

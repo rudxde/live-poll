@@ -22,6 +22,10 @@ export class Environment {
                             type: 'string'
                         })
                         .implies('authEnabled', 'authServiceName')
+                        .option('createPollPermission', {
+                            type: 'string',
+                            default: 'live-poll.create'
+                        })
                 ),
             )
         });
@@ -43,4 +47,5 @@ export interface IEnvironment extends
     corsOrigins?: (string | number)[];
     authEnabled: boolean;
     authServiceName?: string;
+    createPollPermission: string;
 }
