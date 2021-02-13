@@ -5,28 +5,32 @@ import { Client } from '../lib/client';
 
 export const router: WsRouter = Router();
 
-router.ws('/:id', (ws, req) => {
+router.ws('/:id', async (ws, req) => {
     console.debug('client connected');
     let client: Client | undefined = undefined;
     try {
         client = new Client(req.params.id, req.permissions, <any>promisify(ws.send).bind(ws), ws)
-        client!.open().catch(err => { throw err; })
+        await client!.open();
         ws.on('message', (data) => {
             const stringData = data.toString();
             if (stringData !== 'keepalive' && stringData !== 'ping') {
-                client!.message(stringData).catch(err => { throw err; });
+                client!.message(stringData).catch(err => {  handleError(err, ws, client); });
             }
         });
-        ws.on('error', (error) => client!.error(error).catch(err => { throw err; }));
-        ws.on('close', () => client!.close().catch(err => { throw err; }));
+        ws.on('error', (error) => client!.error(error).catch(err => {  handleError(err, ws, client); }));
+        ws.on('close', () => client!.close().catch(err => {  handleError(err, ws, client); }));
     } catch (err) {
-        console.error(err);
-        if (client) {
-            client.close();
-        }
-        if (!ws.CLOSED && !ws.CLOSING) {
-            ws.send('Error');
-            ws.close();
-        }
+        handleError(err, ws, client);
     }
 });
+
+function handleError(err: Error, ws: import('ws'), client: Client | undefined): void {
+    console.error(err);
+    if (client) {
+        client.close();
+    }
+    if (!ws.CLOSED && !ws.CLOSING) {
+        ws.send('Error');
+        ws.close();
+    }
+}
